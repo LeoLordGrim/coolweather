@@ -1,6 +1,9 @@
 package com.coolweather.android;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -9,6 +12,7 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -56,6 +60,13 @@ public class WeatherActivity extends AppCompatActivity {
 
     private ImageView bingPicImg;//背景图片
 
+    public SwipeRefreshLayout swipeRefresh;//下拉刷新
+    private String mWeatherId;
+
+    public DrawerLayout drawerLayout;//滑动菜单
+
+    private Button navButton;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -92,18 +103,31 @@ public class WeatherActivity extends AppCompatActivity {
 
         bingPicImg=(ImageView) findViewById(R.id.bing_pid_img);
 
+        swipeRefresh=(SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
+        swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
+
+        drawerLayout=(DrawerLayout) findViewById(R.id.drawer_layout);
+        navButton=(Button) findViewById(R.id.nav_button);
+
         SharedPreferences prefs= PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString=prefs.getString("weather",null);
         if (weatherString!=null){
             //有缓存时直接解析天气数据
             Weather weather=Utility.handleWeatherResponse(weatherString);
+            mWeatherId=weather.basic.weatherId;
             showWeatherInfo(weather);
         }else {
             //无缓存时去服务器查询天气
-            String weatherId=getIntent().getStringExtra("weather_id");
+            mWeatherId=getIntent().getStringExtra("weather_id");//获得键为 weather_id 的值
             weatherLayout.setVisibility(View.VISIBLE);
-            requestWeather(weatherId);
+            requestWeather(mWeatherId);
         }
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(mWeatherId);
+            }
+        });
 
         String bingPic=prefs.getString("bing_pic",null);//取出键为 bing_pic 的值
         if (bingPic!=null){
@@ -111,6 +135,13 @@ public class WeatherActivity extends AppCompatActivity {
         }else {
             loadBingPic();
         }
+
+        navButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                drawerLayout.openDrawer(GravityCompat.START);
+            }
+        });
     }
 
     /*
@@ -126,6 +157,7 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this,"获取天气信息失败",Toast.LENGTH_SHORT).show();
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
@@ -139,12 +171,14 @@ public class WeatherActivity extends AppCompatActivity {
                     public void run() {
                         if (weather!=null && "ok".equals(weather.status)){
                             SharedPreferences.Editor editor=PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
-                            editor.putString("weather",responseText);
-                            editor.apply();
+                            editor.putString("weather",responseText);//将键为weather的值为responseText
+                            editor.apply();//将修改的数据提交到内存
+                            mWeatherId=weather.basic.weatherId;
                             showWeatherInfo(weather);
                         }else {
                             Toast.makeText(WeatherActivity.this,"获取天气信息失败",Toast.LENGTH_SHORT).show();
                         }
+                        swipeRefresh.setRefreshing(false);//刷新事件结束，并隐藏刷新进度条
                     }
                 });
             }
